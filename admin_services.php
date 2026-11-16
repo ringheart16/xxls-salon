@@ -1,0 +1,16 @@
+<?php
+require_once __DIR__.'/includes/functions.php';require_admin();$pdo=db();$error='';
+if($_SERVER['REQUEST_METHOD']==='POST'){verify_csrf();$action=$_POST['action']??'save';$id=(int)($_POST['id']??0);
+ if($action==='delete'){$pdo->prepare("UPDATE services SET is_active=0 WHERE id=?")->execute([$id]);flash('success','Service hidden from customers.');redirect('admin_services.php');}
+ $name=trim($_POST['name']??'');$desc=trim($_POST['description']??'');$price=(float)($_POST['price']??0);$duration=(int)($_POST['duration_minutes']??0);
+ if($name===''||$price<0||$duration<1)$error='Enter a service name, valid price, and duration.';
+ else {if($id){$pdo->prepare("UPDATE services SET name=?,description=?,price=?,duration_minutes=?,is_active=1 WHERE id=?")->execute([$name,$desc,$price,$duration,$id]);}else{$pdo->prepare("INSERT INTO services(name,description,price,duration_minutes) VALUES(?,?,?,?)")->execute([$name,$desc,$price,$duration]);}flash('success','Service saved.');redirect('admin_services.php');}
+}
+$edit=null;if(isset($_GET['edit'])){$q=$pdo->prepare("SELECT * FROM services WHERE id=?");$q->execute([(int)$_GET['edit']]);$edit=$q->fetch();}
+$rows=$pdo->query("SELECT * FROM services ORDER BY is_active DESC,name")->fetchAll();$pageTitle='Manage Services';require __DIR__.'/includes/header.php';
+?>
+<div class="page-intro"><span class="eyebrow">SALON MENU</span><h1>Manage services</h1><p>Add, update, or temporarily hide services from customer bookings.</p></div>
+<?php if($error):?><div class="alert error"><?=e($error)?></div><?php endif;?>
+<div class="admin-columns"><form method="post" class="form-card"><h2><?=$edit?'Edit service':'Add a service'?></h2><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="id" value="<?=(int)($edit['id']??0)?>"><label>Service name<input name="name" required value="<?=e($edit['name']??'')?>"></label><label>Description<textarea name="description" rows="3"><?=e($edit['description']??'')?></textarea></label><div class="form-grid"><label>Price (₱)<input type="number" name="price" min="0" step="0.01" required value="<?=e((string)($edit['price']??''))?>"></label><label>Duration (minutes)<input type="number" name="duration_minutes" min="1" required value="<?=e((string)($edit['duration_minutes']??60))?>"></label></div><button class="btn btn-primary full">Save service</button><?php if($edit):?><a class="text-link" href="admin_services.php">Cancel edit</a><?php endif;?></form>
+<div class="table-wrap"><table><thead><tr><th>Service</th><th>Price</th><th>Duration</th><th>Active</th><th>Action</th></tr></thead><tbody><?php foreach($rows as $r):?><tr><td><?=e($r['name'])?></td><td><?=money($r['price'])?></td><td><?=$r['duration_minutes']?> min</td><td><?=$r['is_active']?'Yes':'No'?></td><td><a class="text-link" href="?edit=<?=$r['id']?>">Edit</a> <?php if($r['is_active']):?><form method="post" class="inline" data-confirm="Hide this service?"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?=$r['id']?>"><button class="link-danger">Hide</button></form><?php endif;?></td></tr><?php endforeach;?></tbody></table></div></div>
+<?php require __DIR__.'/includes/footer.php';?>
